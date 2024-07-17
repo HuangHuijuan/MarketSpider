@@ -6,6 +6,7 @@ import random
 import tkinter
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
 from threading import Thread
 from playsound import playsound
 import re
@@ -22,6 +23,7 @@ gui_label_eta = {}
 # 淘宝页面版本 0旧 1新
 tbPageVersion = 0
 
+OUTPUT_DIR = '/Users/annie/Documents/欧宁/价格监控'
 
 # GUI函数
 def guiFunc():
@@ -43,9 +45,10 @@ def guiFunc():
 
 
 # GUI线程控制
-Gui_thread = Thread(target=guiFunc, daemon=True)
-Gui_thread.start()
-time.sleep(2)
+# Gui_thread = Thread(target=guiFunc, daemon=True)
+# Gui_thread.start()
+# time.sleep(2)
+# guiFunc()
 
 # 启动浏览器
 gui_text['text'] = '☞等待搜索关键词'
@@ -61,13 +64,13 @@ browser.get('https://www.taobao.com')
 gui_text['background'] = '#ffffff'
 
 # CSV相关
-csvfile = open(f'{keyword}_taobao_{time.strftime("%Y-%m-%d_%H-%M", time.localtime())}.csv', 'a', encoding='utf-8-sig',
+csvfile = open(f'{OUTPUT_DIR}/{keyword}_taobao_{time.strftime("%Y-%m-%d_%H-%M", time.localtime())}.csv', 'a', encoding='utf-8-sig',
                newline='')
 csvWriter = csv.DictWriter(csvfile,
-                           fieldnames=['item_name', 'item_price', 'item_shop', 'shop_link', 'item_link', 'bridge','item_paid'])
+                           fieldnames=['item_name', 'item_price', 'item_shop', 'shop_link', 'item_link', 'bridge','item_paid','tag'])
 csvWriter.writerow(
     {'item_name': '商品名', 'item_price': '商品价格', 'item_shop': '店铺名称', 'shop_link': '店铺链接',
-     'item_link': '商品链接', 'bridge': '店铺id桥','item_paid':'付款人数(参考销量)'})
+     'item_link': '商品链接', 'bridge': '店铺id桥','item_paid':'付款人数(参考销量)', 'tag':'标签'})
 
 # cookie相关
 gui_text['text'] = '正在清空Cookie'
@@ -84,8 +87,8 @@ gui_text['text'] = '正在刷新浏览器'
 browser.refresh()
 # 搜索词与页数获取
 gui_text['text'] = '正在操作'
-browser.get(f'https://s.taobao.com/search?q={keyword}')
 browser.implicitly_wait(10)
+browser.get(f'https://s.taobao.com/search?q={keyword}')
 try:
     # 老版PC淘宝页面
     taobaoPage = browser.find_element(By.CSS_SELECTOR,
@@ -120,42 +123,61 @@ for page in range(page_start, page_end):
         gui_label_now['text'] = f'-'
         playsound('error.wav')
         time.sleep(20)
-    time.sleep(5)
     # 尝试获取商品列表
     try:
         gui_text['text'] = f'当前正在获取第{page}页，还有{page_end - page_start - page}页'
         gui_text['bg'] = '#10d269'
-        goods_arr = browser.find_elements(By.CSS_SELECTOR, '#pageContent > div:nth-child(1) > div:nth-child(3) > div:nth-child(3) > div>div')
+        c = browser.find_elements(By.CSS_SELECTOR, '#pageContent > div:nth-child(1) > div:nth-child(3) > div:nth-child(3) > div')
+        goods_arr = browser.find_elements(By.CSS_SELECTOR, '#pageContent > div:nth-child(1) > div:nth-child(3) > div:nth-child(3) > div > div')
         goods_length = len(goods_arr)
         for i, goods in enumerate(goods_arr):
-            try:
+            print(f'正在遍历第{i}个商品，一共{goods_length}个')
+            try:    
                 i=i+1
                 browser.execute_script("document.documentElement.scrollTop=1000")
                 gui_label_now['text'] = f'正在获取第{i}个,共计{goods_length}个'
-                item_name = goods.find_element(By.CSS_SELECTOR,
-                                    f'div:nth-child({i})>a>div > div:nth-child(1) > div:nth-child(2) > div > span').text
+                
+                item = goods.find_element(By.CSS_SELECTOR,
+                                    f'a>div > div:nth-child(1) > div:nth-child(2) > div > span')
+            
+                item_name = item.text
+                if '欧宁' not in item_name:
+                    continue
+            
                 item_price= goods.find_element(By.CSS_SELECTOR,
-                                    f'div:nth-child({i})>a>div > div:nth-child(1) > div:nth-child(4) > div').text
+                                    f'a>div > div:nth-child(1) > div:nth-child(4) > div').text
+                price = float(item_price)
+                tag = '-'
+                if '蒸' in item_name:
+                    if '12' in item_name and price < 650:
+                        tag = '低价'
+                    if '20' in item_name and price < 1300:
+                        tag = '低价'
+                    if '24' in item_name and price < 1000:   
+                        tag = '低价'
+                    if '32' in item_name and price < 1500:   
+                        tag = '低价'
+
                 item_shop = goods.find_element(By.CSS_SELECTOR,
-                                    f'div:nth-child({i})>a>div> div:nth-child(3) > div>a').text
+                                    f'a>div> div:nth-child(3) > div>a').text
                 shop_link = goods.find_element(By.CSS_SELECTOR,
-                                    f'div:nth-child({i})>a>div> div:nth-child(3) > div>a').get_attribute(
+                                    f'a>div> div:nth-child(3) > div>a').get_attribute(
         'href')
                 item_link = goods.find_element(By.CSS_SELECTOR,
-                                    f'div:nth-child({i})>a').get_attribute(
+                                    f'a').get_attribute(
         'href')
                 item_paid=goods.find_element(By.CSS_SELECTOR,
-                                    f'div:nth-child({i})>a>div > div:nth-child(1) > div:nth-child(4) > span.Price--realSales--FhTZc7U').text
+                                    f'a>div > div:nth-child(1) > div:nth-child(4) > span.Price--realSales--FhTZc7U').text
                 try:
                     b = shop_link.split('https://store.taobao.com/shop/view_shop.htm?appUid=')[1]
                 except:
                     b = shop_link
                 csvWriter.writerow(
                     {'item_name': item_name, 'item_price': item_price, 'item_shop': item_shop, 'shop_link': shop_link,
-                        'item_link': item_link, 'bridge': b,'item_paid':item_paid})
+                        'item_link': item_link, 'bridge': b,'item_paid':item_paid, 'tag': tag})
                 csvfile.flush()
             except:
-                print(f'第{i}个商品获取信息出错,跳过')
+                print(f'第{i-1}个商品获取信息出错,跳过')
                 traceback.print_exc()
     except Exception as e:
         print(f'在遍历商品时出错{e}')
@@ -169,6 +191,7 @@ for page in range(page_start, page_end):
         playsound('error.wav')
         time.sleep(20)
 
+    print('遍历完成')
     delay_time = random.randint(10, 30)
     for delay in range(delay_time):
         gui_label_now['text'] = '-'
