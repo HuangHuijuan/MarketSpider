@@ -11,6 +11,7 @@ from threading import Thread
 from playsound import playsound
 import re
 import traceback
+import utils.helper as helper
 
 VERSION='1.1'
 print(f'程序版本{VERSION}\n最新程序下载地址:https://github.com/zhangjiancong/MarketSpider')
@@ -146,17 +147,7 @@ for page in range(page_start, page_end):
             
                 item_price= goods.find_element(By.CSS_SELECTOR,
                                     f'a>div > div:nth-child(1) > div:nth-child(4) > div').text
-                price = float(item_price)
-                tag = '-'
-                if '蒸' in item_name:
-                    if '12' in item_name and price < 650:
-                        tag = '低价'
-                    if '20' in item_name and price < 1300:
-                        tag = '低价'
-                    if '24' in item_name and price < 1000:   
-                        tag = '低价'
-                    if '32' in item_name and price < 1500:   
-                        tag = '低价'
+                tag = helper.getPriceTag(item_name, float(item_price))
 
                 item_shop = goods.find_element(By.CSS_SELECTOR,
                                     f'a>div> div:nth-child(3) > div>a').text

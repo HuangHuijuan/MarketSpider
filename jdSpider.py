@@ -9,12 +9,16 @@ from selenium.webdriver.common.by import By
 from threading import Thread
 from playsound import playsound
 import functions.jdSpiderDependence as jds
+import utils.helper as helper
+import traceback
+
 VERSION='1.0'
 print(f'程序版本{VERSION}\n最新程序下载地址:https://github.com/zhangjiancong/MarketSpider')
 # 全局变量状态文字
 gui_text = {}
 gui_label_now = {}
 gui_label_eta = {}
+OUTPUT_DIR = '/Users/annie/Documents/欧宁/价格监控'
 
 
 # GUI函数
@@ -37,9 +41,9 @@ def guiFunc():
 
 
 # GUI线程控制
-Gui_thread = Thread(target=guiFunc, daemon=True)
-Gui_thread.start()
-time.sleep(2)
+# Gui_thread = Thread(target=guiFunc, daemon=True)
+# Gui_thread.start()
+# time.sleep(2)
 
 # 启动浏览器
 gui_text['text'] = '☞等待搜索关键词'
@@ -52,13 +56,13 @@ browser = webdriver.Chrome(options=options)
 browser.get('https://www.jd.com')
 
 # CSV相关
-csvfile = open(f'{keyword}-jd-{time.strftime("%Y%m%d%H%M", time.localtime())}.csv', 'a', encoding='utf-8-sig',
+csvfile = open(f'{OUTPUT_DIR}/{keyword}-jd-{time.strftime("%Y%m%d%H%M", time.localtime())}.csv', 'a', encoding='utf-8-sig',
                newline='')
 csvWriter = csv.DictWriter(csvfile,
-                           fieldnames=['item_name', 'item_price', 'item_shop', 'shop_link', 'item_link', 'jdshop_id'])
+                           fieldnames=['item_name', 'item_price', 'item_shop', 'shop_link', 'item_link', 'jdshop_id', 'tag'])
 csvWriter.writerow(
     {'item_name': '商品名', 'item_price': '商品价格', 'item_shop': '店铺名称', 'shop_link': '店铺链接', 'item_link': '商品链接',
-     'jdshop_id': '京东店铺ID'})
+     'jdshop_id': '京东店铺ID', 'tag': '标签'})
 
 # cookie相关
 gui_text['text'] = '正在清空Cookie'
@@ -93,19 +97,29 @@ for page in range(page_start, page_end):
     gui_text['bg'] = '#10d269'
     gui_label_now['text'] = '-'
     gui_label_eta['text'] = '-'
+    print(f'当前正在获取第{page}页，还有{page_end - page_start - page}页')
     browser.execute_script(f"SEARCH.page({2 * page - 1}, true)")
+    browser.refresh()
     time.sleep(5)
     browser.execute_script("document.documentElement.scrollTop=100000")
     time.sleep(2)
     browser.execute_script("document.documentElement.scrollTop=9959")
     # 每一页有60项
-    for i in range(1, 61):
+    goods_attr = browser.find_element(By.CSS_SELECTOR, f'#J_goodsList > ul > li')
+    len = 30
+    for i in range(1, len + 1):
         try:
-            gui_label_now['text'] = f'正在获取：当前页第{i}个，剩余{60 - i}个'
+            gui_label_now['text'] = f'正在获取：当前页第{i}个，剩余{len - i}个'
+            print(f'正在获取：当前页第{i}个，剩余{len - i}个')
             item_name = browser.find_element(By.CSS_SELECTOR,
                                              f'#J_goodsList > ul > li:nth-child({i}) > div > div.p-name.p-name-type-2 > a > em').text
+            if '欧宁' not in item_name:
+                continue
+
             item_price = browser.find_element(By.CSS_SELECTOR,
                                               f'#J_goodsList > ul > li:nth-child({i}) > div > div.p-price > strong > i').text
+            tag = helper.getPriceTag(item_name, float(item_price))
+
             item_shop = browser.find_element(By.CSS_SELECTOR,
                                              f'#J_goodsList > ul > li:nth-child({i}) > div > div.p-shop > span > a').text
             shop_link = browser.find_element(By.CSS_SELECTOR,
@@ -117,15 +131,20 @@ for page in range(page_start, page_end):
             jdshop_id = jds.shop_id_get(shop_link)
             csvWriter.writerow(
                 {'item_name': item_name, 'item_price': item_price, 'item_shop': item_shop, 'shop_link': shop_link,
-                 'item_link': item_link, 'jdshop_id': jdshop_id})
+                 'item_link': item_link, 'jdshop_id': jdshop_id, 'tag': tag})
             csvfile.flush()
         except:
+            if page == page_end - 1:
+                break
             gui_text['text'] = f'出错：如有验证请验证。等待10秒'
             gui_text['bg'] = 'red'
             gui_label_eta['text'] = '-'
             gui_label_now['text'] = '-'
             playsound('error.wav')
+            print(f'第{i-1}个商品获取信息出错,跳过')
+            traceback.print_exc()
             time.sleep(10)
+
     delay_time = random.randint(10, 30)
     for delay in range(delay_time):
         gui_label_now['text'] = '-'
